@@ -78,7 +78,7 @@ impl Configuration {
 }
 
 fn get_default_url() -> String{
-    "https://github.com/github/licensor-templates".to_string()
+    "https://github.com/atareao/licensor-templates/archive/main.zip".to_string()
 }
 
 fn get_default_templates() -> Vec<Template>{

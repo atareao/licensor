@@ -29,7 +29,7 @@ use async_recursion::async_recursion;
 pub async fn fetch_url(url: &str, filename: &str) -> Result<()> {
     info!("fetch_url");
     let mut spinner = Spinner::new(Spinners::Dots9,
-                                   "Downloading gitignore".into());
+                                   "Downloading templates".into());
     let response = reqwest::get(url).await?;
     spinner.stop_and_persist("✔", "Downloaded!".into());
     let mut file = std::fs::File::create(filename)?;
