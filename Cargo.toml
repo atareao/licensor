@@ -4,14 +4,17 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-async-recursion = "1.1.1"
+async_zip = { version = "0.0.17", features = ["full"] }
 clap = { version = "4.5.21", features = ["derive"] }
+futures-lite = "2.5.0"
 home = "0.5.9"
 inquire = "0.7.5"
 log = "0.4.22"
 reqwest = "0.12.9"
+sanitize-filename = "0.6.0"
 serde = { version = "1.0.215", features = ["derive"] }
 simple_logger = "5.0.0"
 spinners = "4.1.1"
 tokio = { version = "1.41.1", features = ["full"] }
+tokio-util = "0.7.12"
 yaml-rust2 = "0.9.0"
