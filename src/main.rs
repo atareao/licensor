@@ -11,30 +11,27 @@ use cli::{Cli, Commands};
 use clap::Parser;
 use configuration::Configuration;
 use home::home_dir;
-use tokio::fs;
 
 #[tokio::main]
 async fn main() {
-    info!("Starting...");
-    init_with_env().expect("Cant init logger");
     let configuration = Configuration::new().await;
     debug!("{:?}", configuration);
     let cli = Cli::parse();
+    if cli.debug {
+        init_with_env().expect("Cant init logger");
+        info!("Starting...");
+    }
     match &cli.command {
         Commands::Update => {
             let url = configuration.url;
             debug!("{:?}", &url);
             let zipfile = "/tmp/output.zip";
-            let home_dir = home_dir().unwrap();
-                       
-            let mut config_dir = home_dir;
+            let mut config_dir = home_dir().unwrap();
             config_dir.push(".config");
             config_dir.push("licensor");
-            config_dir.push("licensor-templates-main");
-            let _ = tokio::fs::remove_dir(config_dir.clone()).await;
-            config_dir.pop();
             config_dir.push("licenses");
-            let _ = tokio::fs::remove_dir(config_dir.clone()).await;
+            let y = tokio::fs::remove_dir_all(config_dir.clone()).await;
+            debug!("{:?}", y);
             config_dir.pop();
             let _ = tools::fetch_url(&url, zipfile).await;
             let _ = tools::unzip(zipfile, &config_dir).await;

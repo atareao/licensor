@@ -20,7 +20,7 @@
 
 use async_zip::base::read::seek::ZipFileReader; use chrono::Datelike;
 //AsyncReadExt
-use log::{debug, error, info};
+use log::{debug, info};
 use spinners::{Spinner, Spinners};
 use std::{io::Cursor, path::Path, path::PathBuf, error::Error};
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
@@ -47,6 +47,7 @@ pub async fn fetch_url(url: &str, filename: &str) -> Result<()> {
 pub async fn unzip(zipfile: &str, out_dir: &PathBuf) -> Result<()> {
     info!("unzip");
     //let file = File::open(zipfile).await?;
+    let mut spinner = Spinner::new(Spinners::Dots9, "Unzip templates".into());
     let out_dir = Path::new(out_dir);
     let file = File::open(zipfile).await?;
     let buf_reader = BufReader::new(file).compat();
@@ -88,8 +89,7 @@ pub async fn unzip(zipfile: &str, out_dir: &PathBuf) -> Result<()> {
             // Closes the file and manipulates its metadata here if you wish to preserve its metadata from the archive.
         }
     }
-
-
+    spinner.stop_and_persist("✔", "Unzipped!".into());
     Ok(())
 }
 
