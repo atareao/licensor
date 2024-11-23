@@ -19,16 +19,16 @@
 // SOFTWARE.
 use std::io::Error;
 use log::{info, debug};
-use serde::Deserialize;
+use serde::{Serialize, Deserialize};
 use home::home_dir;
-use yaml_rust2::YamlLoader;
+use yaml_rust2::{Yaml, YamlLoader, YamlEmitter, yaml::Hash};
 use tokio::fs;
 use super::template::Template;
 use super::variable::Variable;
 
 static DEFAULT_CONFIG: &str = include_str!("./licensor.yml");
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Configuration {
     #[serde(default = "get_default_url")]
     pub url: String,
@@ -39,6 +39,76 @@ pub struct Configuration {
 }
 
 impl Configuration {
+    pub fn to_yml(&self) -> Yaml {
+        let mut hash = Hash::new();
+        hash.insert(Yaml::String("url".to_string()), Yaml::String(self.url.clone()));
+        let templates = self.templates
+            .iter()
+            .map(|template| template.to_yml())
+            .collect::<Vec<Yaml>>();
+        hash.insert(Yaml::String("templates".to_string()), Yaml::Array(templates));
+        let variables = self.variables
+            .iter()
+            .map(|variable| variable.to_yml())
+            .collect::<Vec<Yaml>>();
+        hash.insert(Yaml::String("variables".to_string()), Yaml::Array(variables));
+        Yaml::Hash(hash)
+    }
+
+    pub fn from_yml(yml: Yaml) -> Self{
+        let url = yml["url"].as_str().unwrap_or(&get_default_url()).to_string();
+        let templates = yml["templates"]
+            .as_vec()
+            .unwrap()
+            .iter()
+            .map(Template::from_yml)
+            .collect::<Vec<Template>>();
+        let variables = yml["variables"]
+            .as_vec()
+            .unwrap()
+            .iter()
+            .map(Variable::from_yml)
+            .collect::<Vec<Variable>>();
+        Self {
+            url,
+            templates,
+            variables,
+        }
+    }
+
+    pub async fn update_licenses() -> Result<(), Error>{
+        let licenses_content = read_licenses().await?;
+        let items = YamlLoader::load_from_str(&licenses_content)
+            .map_err(|e| Error::new(std::io::ErrorKind::InvalidData, e))?;
+        debug!("{:?}", items[0]);
+        let templates = items[0]
+            .as_vec()
+            .unwrap()
+            .iter()
+            .map(Template::from_yml)
+            .collect::<Vec<Template>>();
+        let mut config = Self::new().await;
+        config.templates = templates;
+        config.save().await?;
+        Ok(())
+    }
+
+    pub async fn save(&self) -> Result<(), Error> {
+        let mut output = String::new();
+        let mut emitter = YamlEmitter::new(&mut output);
+        emitter.multiline_strings(true);
+        emitter.dump(&self.to_yml()).unwrap();
+        debug!("output: {:?}", self.to_yml());
+        let mut config_file = home_dir().unwrap();
+        config_file.push(".config");
+        config_file.push("licensor");
+        config_file.push("licensor.yml");
+        debug!("output: {:?}", output);
+        tokio::fs::write(config_file, output).await?;
+        
+        Ok(())
+    }
+
     pub async fn new()->Self{
         let config_content = match read_file().await{
             Ok(content) => content,
@@ -47,33 +117,7 @@ impl Configuration {
             }
         };
         let items = YamlLoader::load_from_str(&config_content).unwrap();
-        let item = &items[0];
-        let url = item["url"].as_str().unwrap_or(&get_default_url()).to_string();
-        let templates = item["templates"]
-            .as_vec()
-            .unwrap()
-            .iter()
-            .map(|item| Template{
-                name: item["name"].as_str().unwrap().to_string(),
-                filename: item["filename"].as_str().unwrap().to_string(),
-            })
-                .collect::<Vec<Template>>()
-        ;
-        let variables = item["variables"]
-            .as_vec()
-            .unwrap()
-            .iter()
-            .map(|item| Variable{
-                key: item["key"].as_str().unwrap().to_string(),
-                value: item["value"].as_str().unwrap().to_string(),
-            })
-            .collect::<Vec<Variable>>()
-        ;
-        Configuration{
-            url,
-            templates,
-            variables,
-        }
+        Self::from_yml(items[0].clone())
     }
 }
 
@@ -87,6 +131,18 @@ fn get_default_templates() -> Vec<Template>{
 
 fn get_default_variables() -> Vec<Variable>{
     Vec::new()
+}
+
+async fn read_licenses() -> Result<String, Error> {
+    info!("read_file");
+    let mut config_dir = home_dir().unwrap();
+    config_dir.push(".config");
+    config_dir.push("licensor");
+    config_dir.push("licenses");
+    config_dir.push("licenses.yml");
+    debug!("config_dir: {:?}", config_dir);
+    tokio::fs::read_to_string(config_dir.to_str().unwrap()).await
+
 }
 
 async fn read_file()->Result<String, Error>{

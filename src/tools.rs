@@ -18,16 +18,20 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-use async_zip::base::read::seek::ZipFileReader; //AsyncReadExt
+use async_zip::base::read::seek::ZipFileReader; use chrono::Datelike;
+//AsyncReadExt
 use log::{debug, error, info};
 use spinners::{Spinner, Spinners};
 use std::{io::Cursor, path::Path, path::PathBuf, error::Error};
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
+use std::collections::HashMap;
+use minijinja::{context, Environment};
 use tokio::{
     fs::{create_dir_all, File, OpenOptions},
     io::BufReader,
 };
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
+use super::variable::Variable;
 
 pub async fn fetch_url(url: &str, filename: &str) -> Result<()> {
     info!("fetch_url");
@@ -40,7 +44,7 @@ pub async fn fetch_url(url: &str, filename: &str) -> Result<()> {
     Ok(())
 }
 
-pub async fn unzip(zipfile: &str, out_dir: &str) -> Result<()> {
+pub async fn unzip(zipfile: &str, out_dir: &PathBuf) -> Result<()> {
     info!("unzip");
     //let file = File::open(zipfile).await?;
     let out_dir = Path::new(out_dir);
@@ -61,6 +65,7 @@ pub async fn unzip(zipfile: &str, out_dir: &str) -> Result<()> {
         if entry_is_dir {
             // The directory may have been created if iteration is out of order.
             if !path.exists() {
+                debug!("{:?}", &path);
                 create_dir_all(&path).await?;
             }
         } else {
@@ -96,4 +101,30 @@ fn sanitize_file_path(path: &str) -> PathBuf {
         .split('/')
         .map(sanitize_filename::sanitize)
         .collect()
+}
+
+
+pub fn reder_template(vars: &Vec<Variable>, jinja_file: &PathBuf, jinja_content: &str) -> Result<String> {
+    let mut var = HashMap::new();
+    for item in vars{
+        var.insert(&item.key, &item.value);
+    }
+    let now = chrono::Utc::now();
+    let key = &"YEAR".to_string();
+    let value = &format!("{}", now.year());
+    var.insert(key, value);
+    let key = &"MONTH".to_string();
+    let value = &format!("{}", now.month());
+    var.insert(key, value);
+    let key = &"DAY".to_string();
+    let value = &format!("{}", now.day());
+    var.insert(key, value);
+    let mut environment = Environment::new();
+    let file = jinja_file.as_os_str().to_str().unwrap();
+    environment.add_template(file, jinja_content)?;
+
+    let template = environment.get_template(file)?;
+    let ctx = context!(var);
+
+    Ok(template.render(&ctx)?)
 }
