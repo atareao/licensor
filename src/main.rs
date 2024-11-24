@@ -44,11 +44,12 @@ async fn main() {
             let _ = Configuration::update_licenses().await;
         },
         Commands::Select => {
-            let templates: Vec<String> = configuration
+            let mut templates: Vec<String> = configuration
                 .templates
                 .iter()
                 .map(|s| s.name.clone())
                 .collect();
+            templates.sort();
             debug!("{:?}", &templates);
             match Select::new("Select license?", templates).prompt(){
                 Ok(selected) => {
